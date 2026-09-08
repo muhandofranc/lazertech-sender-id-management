@@ -1,0 +1,17 @@
+services:
+  senders-dashboard:
+    build: .
+    container_name: grantiliff-senders
+    restart: unless-stopped
+    ports:
+      - "3020:3020"
+    env_file:
+      - .env
+    environment:
+      # MySQL runs on the host, not in this compose project, so reach it
+      # through the docker bridge gateway. The connection arrives at MySQL
+      # from the bridge subnet, which is why the `intranet` user is granted
+      # for '172.%' as well as localhost (migrations/002_app_user.sql).
+      DB_HOST: host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

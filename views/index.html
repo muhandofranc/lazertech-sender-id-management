@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sender IDs &middot; grantiliff</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Sender ID Manager <span class="tag">grantiliff</span></h1>
+    <div>
+      <span class="who" id="who"></span>
+      <button class="btn small" id="logout">Sign out</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="msg error" id="banner-error" hidden></div>
+    <div class="msg ok" id="banner-ok" hidden></div>
+
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-senders" aria-selected="true">Sender IDs</button>
+      <button role="tab" id="tab-users" aria-selected="false" hidden>Users</button>
+      <button role="tab" id="tab-audit" aria-selected="false" hidden>Audit log</button>
+    </div>
+
+    <section id="view-senders">
+      <div class="panel">
+        <h2 id="form-title">Add sender ID</h2>
+        <form id="sender-form">
+          <input type="hidden" id="edit-id" value="" />
+          <div class="row">
+            <div class="field">
+              <label for="senderId">Sender ID <span class="tag">max 12</span></label>
+              <input id="senderId" maxlength="12" required />
+            </div>
+            <div class="field">
+              <label for="senderIdType">Type</label>
+              <select id="senderIdType">
+                <option value="Transactional">Transactional</option>
+                <option value="Promotional">Promotional</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="csp">CSP</label>
+              <select id="csp">
+                <option value="grant">grant</option>
+                <option value="lazer">lazer</option>
+              </select>
+            </div>
+            <div class="field" style="flex:0 0 auto">
+              <button class="btn primary" type="submit" id="save-btn">Create</button>
+            </div>
+            <div class="field" style="flex:0 0 auto">
+              <button class="btn" type="button" id="cancel-btn" hidden>Cancel</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <h2>Sender IDs</h2>
+        <div class="row" style="margin-bottom:14px">
+          <div class="field">
+            <label for="search">Search</label>
+            <input id="search" placeholder="Filter by sender ID" />
+          </div>
+          <div class="field">
+            <label for="filter-type">Type</label>
+            <select id="filter-type">
+              <option value="">All</option>
+              <option value="Transactional">Transactional</option>
+              <option value="Promotional">Promotional</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-csp">CSP</label>
+            <select id="filter-csp">
+              <option value="">All</option>
+              <option value="grant">grant</option>
+              <option value="lazer">lazer</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr><th>ID</th><th>Sender ID</th><th>Type</th><th>CSP</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="senders-body"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="senders-empty" hidden>No sender IDs match.</div>
+      </div>
+    </section>
+
+    <section id="view-users" hidden>
+      <div class="panel">
+        <h2 id="user-form-title">Add user</h2>
+        <form id="user-form">
+          <div class="row">
+            <div class="field">
+              <label for="new-username">Username</label>
+              <input id="new-username" maxlength="64" required />
+            </div>
+            <div class="field">
+              <label for="new-password">Password <span class="tag">min 8</span></label>
+              <input id="new-password" type="password" minlength="8" required />
+            </div>
+            <div class="field">
+              <label for="new-role">Role</label>
+              <select id="new-role">
+                <option value="user">User</option>
+                <option value="super_admin">Super admin</option>
+              </select>
+            </div>
+            <div class="field" style="flex:0 0 auto">
+              <button class="btn primary" type="submit" id="user-save">Create user</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <h2>Users</h2>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr><th>Username</th><th>Role</th><th>Status</th><th>Last login</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="users-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-audit" hidden>
+      <div class="panel">
+        <h2>Audit log</h2>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr><th>When</th><th>User</th><th>Action</th><th>Sender ID</th><th>Change</th><th>IP</th></tr>
+            </thead>
+            <tbody id="audit-body"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="audit-empty" hidden>No audit entries yet.</div>
+      </div>
+    </section>
+  </main>
+
+  <div class="overlay" id="confirm-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <h3 id="confirm-title">Delete sender ID?</h3>
+      <p id="confirm-body">You are about to permanently delete <span class="confirm-target" id="confirm-name"></span>.</p>
+      <p class="warn">This cannot be undone. The audit log will keep a record of the deletion.</p>
+      <div class="modal-actions">
+        <button class="btn" type="button" id="confirm-cancel">Cancel</button>
+        <button class="btn danger" type="button" id="confirm-delete">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

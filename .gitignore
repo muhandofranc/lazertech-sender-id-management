@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+public/app.js
+public/app.js.map
+public/login.js
+public/login.js.map
+npm-debug.log*

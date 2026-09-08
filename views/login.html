@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in &middot; Sender IDs</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="login-wrap">
+    <form class="login-card" id="login-form" autocomplete="on">
+      <h1>Sender ID Manager</h1>
+      <p class="sub">grantiliff &middot; sign in to continue</p>
+      <div class="msg error" id="login-error" hidden></div>
+      <div class="field" style="margin-bottom:12px">
+        <label for="username">Username</label>
+        <input id="username" name="username" autocomplete="username" required autofocus />
+      </div>
+      <div class="field" style="margin-bottom:18px">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required />
+      </div>
+      <button class="btn primary full" type="submit" id="login-submit">Sign in</button>
+    </form>
+  </div>
+  <script src="/login.js"></script>
+</body>
+</html>
