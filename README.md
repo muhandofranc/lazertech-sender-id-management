@@ -20,6 +20,31 @@ The audit log is the only remaining record that the sender ID existed, which is
 why the delete and its audit row are written in one transaction, and why the
 audit row snapshots the full contents of the deleted row into `before_json`.
 
+## Default login
+
+`migrations/004_default_super_admin.sql` creates the bootstrap account:
+
+| username | password |
+| --- | --- |
+| `admin` | `ChangeMe@123` |
+
+**Change this password the first time you sign in** — it is published in this
+repository, so anyone who can read the source knows it. Change it from the
+Users tab, or with `npm run seed-user -- admin '<new password>' super_admin`.
+
+The insert is guarded on `dashboard_users` being empty, so it only fires on a
+genuinely fresh install. Re-running the migration will not resurrect a deleted
+admin, reset a password that has since been changed, or re-add the account on
+an instance that has moved on to real users.
+
+SQL cannot compute bcrypt, so the hash in that file is precomputed (cost 12).
+If you change the default password, regenerate the hash rather than editing the
+plaintext:
+
+```bash
+node -e "console.log(require('bcryptjs').hashSync('<new password>', 12))"
+```
+
 ## Roles
 
 | | super admin | user |
@@ -58,8 +83,8 @@ cp .env.example .env   # then fill in DB_PASSWORD and SESSION_SECRET
 npm install
 npm run build   # needs node locally; otherwise use the Docker path below
 
-# 5. create the first super admin (re-run to reset a user's password/role).
-#    After this, manage users from the Users tab in the UI.
+# 5. (optional) migration 004 already created the default super admin.
+#    Use this only to reset a password or add an account from the CLI.
 npm run seed-user -- <username> <password> [super_admin|user]   # defaults to super_admin
 
 # 6. run
@@ -89,7 +114,7 @@ database; compose does not do them.
 
 | Table | Purpose |
 | --- | --- |
-| `dashboard_users` | Operators who can sign in. `username`, bcrypt `password_hash`, `role`, `is_active`, `last_login_at`. |
+| `dashboard_users` | Operators who can sign in. Seeded with the default super admin by migration 004. `username`, bcrypt `password_hash`, `role`, `is_active`, `last_login_at`. |
 | `sender_audit_log` | Append-only trail: `create`, `update`, `delete`, `login`, `login_failed`, `user_create`, `user_update`, `user_delete`, with actor, IP, and before/after JSON. |
 
 `sender_audit_log` deliberately has no foreign key to `senderiddetails` (the
