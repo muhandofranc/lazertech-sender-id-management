@@ -166,3 +166,20 @@ td.actions { white-space: nowrap; display: flex; gap: 6px; }
 }
 .modal .warn { color: var(--danger); font-size: 13px; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+/* ---------- pagination ---------- */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.pager[hidden] { display: none !important; }
+.pager-status { color: var(--muted); font-size: 12px; }
+.pager-controls { display: flex; align-items: center; gap: 8px; }
+.pager-size-label { font-size: 12px; }
+select.pager-size { width: auto; padding: 5px 8px; font-size: 12px; }

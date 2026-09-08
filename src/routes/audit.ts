@@ -9,7 +9,7 @@ export const auditRouter = Router();
 auditRouter.use(requireApiAuth, requireSuperAdmin);
 
 const querySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(200).default(100),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
 
@@ -22,6 +22,11 @@ auditRouter.get('/', async (req, res, next) => {
     }
     const { limit, offset } = parsed.data;
 
+    const [countRows] = await pool.query<RowDataPacket[]>(
+      'SELECT COUNT(*) AS n FROM sender_audit_log',
+    );
+    const total = Number(countRows[0]?.n ?? 0);
+
     // LIMIT/OFFSET are interpolated rather than bound because MySQL will
     // not accept placeholders there in a prepared statement. Both values
     // are already coerced to bounded integers by the schema above.
@@ -32,7 +37,7 @@ auditRouter.get('/', async (req, res, next) => {
         ORDER BY id DESC
         LIMIT ${limit} OFFSET ${offset}`,
     );
-    res.json({ entries: rows });
+    res.json({ entries: rows, total, limit, offset });
   } catch (err) {
     next(err);
   }

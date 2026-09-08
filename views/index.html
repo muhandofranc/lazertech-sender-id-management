@@ -92,6 +92,20 @@
           </table>
         </div>
         <div class="empty" id="senders-empty" hidden>No sender IDs match.</div>
+        <div class="pager" id="senders-pager">
+          <span class="pager-status" id="senders-status"></span>
+          <div class="pager-controls">
+            <label for="senders-size" class="pager-size-label">Rows</label>
+            <select id="senders-size" class="pager-size">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+            <button class="btn small" type="button" id="senders-prev">Previous</button>
+            <button class="btn small" type="button" id="senders-next">Next</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -147,6 +161,20 @@
           </table>
         </div>
         <div class="empty" id="audit-empty" hidden>No audit entries yet.</div>
+        <div class="pager" id="audit-pager">
+          <span class="pager-status" id="audit-status"></span>
+          <div class="pager-controls">
+            <label for="audit-size" class="pager-size-label">Rows</label>
+            <select id="audit-size" class="pager-size">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+            <button class="btn small" type="button" id="audit-prev">Previous</button>
+            <button class="btn small" type="button" id="audit-next">Next</button>
+          </div>
+        </div>
       </div>
     </section>
   </main>

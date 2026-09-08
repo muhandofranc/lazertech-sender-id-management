@@ -230,6 +230,23 @@ directly on the host or in a container on the bridge network.
 MySQL 8.4 removed the `mysql_native_password` plugin, so the account uses
 `caching_sha2_password`; the `mysql2` driver speaks it.
 
+## Pagination
+
+Both tables page on the server: the query uses `LIMIT`/`OFFSET` and a matching
+`COUNT(*)`, so a page costs the same whether the table holds 50 rows or 50,000.
+Default 50 per page, selectable 25/50/100/200 (200 is the server's cap; a
+larger `limit` is a `400`).
+
+The count is computed with the **same** `WHERE` clause as the page, so
+filtering to `csp=lazer` reports the number of lazer rows, not the table total.
+
+Two edge cases the client handles:
+
+- changing a filter resets to the first page, since the narrowed result set is
+  usually shorter than the current offset;
+- deleting the last row on the final page steps back a page and refetches,
+  instead of showing an empty table while rows still exist.
+
 ## Notes
 
 - `senderId` is `varchar(12)` with a `UNIQUE` index; the API validates the

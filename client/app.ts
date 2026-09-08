@@ -105,6 +105,36 @@
     return body as T;
   }
 
+  /**
+   * Renders one pager and reports whether the requested offset was valid.
+   * Returns the offset actually in effect, which differs when a delete or a
+   * filter change leaves the current page beyond the end of the results.
+   */
+  function renderPager(
+    prefix: string,
+    total: number,
+    limit: number,
+    offset: number,
+    noun: string,
+  ): void {
+    const status = $<HTMLSpanElement>(`${prefix}-status`);
+    const prev = $<HTMLButtonElement>(`${prefix}-prev`);
+    const next = $<HTMLButtonElement>(`${prefix}-next`);
+
+    if (total === 0) {
+      status.textContent = `No ${noun}`;
+    } else {
+      const first = offset + 1;
+      const last = Math.min(offset + limit, total);
+      const pages = Math.max(1, Math.ceil(total / limit));
+      const page = Math.floor(offset / limit) + 1;
+      status.textContent =
+        `${first}\u2013${last} of ${total} ${noun}  \u00b7  page ${page} of ${pages}`;
+    }
+    prev.disabled = offset <= 0;
+    next.disabled = offset + limit >= total;
+  }
+
   function td(text: string, className?: string): HTMLTableCellElement {
     const cell = document.createElement('td');
     cell.textContent = text;
@@ -160,19 +190,51 @@
     }
   }
 
+  const sendersSize = $<HTMLSelectElement>('senders-size');
+  let sendersOffset = 0;
+
   async function loadSenders(): Promise<void> {
+    const limit = Number(sendersSize.value);
     const params = new URLSearchParams();
     if (search.value.trim() !== '') params.set('search', search.value.trim());
     if (filterType.value !== '') params.set('type', filterType.value);
     if (filterCsp.value !== '') params.set('csp', filterCsp.value);
+    params.set('limit', String(limit));
+    params.set('offset', String(sendersOffset));
 
     try {
-      const data = await api<{ senders: Sender[] }>(`/api/senders?${params.toString()}`);
+      const data = await api<{ senders: Sender[]; total: number; limit: number; offset: number }>(
+        `/api/senders?${params.toString()}`,
+      );
+
+      // Deleting the last row of the final page (or tightening a filter) can
+      // leave the offset past the end of the results. Step back and refetch
+      // rather than showing an empty table with rows still available.
+      if (data.senders.length === 0 && data.total > 0 && sendersOffset > 0) {
+        sendersOffset = Math.max(0, (Math.ceil(data.total / limit) - 1) * limit);
+        await loadSenders();
+        return;
+      }
+
       renderSenders(data.senders);
+      renderPager('senders', data.total, data.limit, data.offset, 'sender IDs');
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Could not load sender IDs');
     }
   }
+
+  $<HTMLButtonElement>('senders-prev').addEventListener('click', () => {
+    sendersOffset = Math.max(0, sendersOffset - Number(sendersSize.value));
+    void loadSenders();
+  });
+  $<HTMLButtonElement>('senders-next').addEventListener('click', () => {
+    sendersOffset += Number(sendersSize.value);
+    void loadSenders();
+  });
+  sendersSize.addEventListener('change', () => {
+    sendersOffset = 0;
+    void loadSenders();
+  });
 
   function startEdit(sender: Sender): void {
     clearMessages();
@@ -435,9 +497,26 @@
     return '—';
   }
 
+  const auditSize = $<HTMLSelectElement>('audit-size');
+  let auditOffset = 0;
+
   async function loadAudit(): Promise<void> {
+    const limit = Number(auditSize.value);
     try {
-      const data = await api<{ entries: AuditEntry[] }>('/api/audit?limit=200');
+      const data = await api<{
+        entries: AuditEntry[];
+        total: number;
+        limit: number;
+        offset: number;
+      }>(`/api/audit?limit=${limit}&offset=${auditOffset}`);
+
+      if (data.entries.length === 0 && data.total > 0 && auditOffset > 0) {
+        auditOffset = Math.max(0, (Math.ceil(data.total / limit) - 1) * limit);
+        await loadAudit();
+        return;
+      }
+
+      renderPager('audit', data.total, data.limit, data.offset, 'entries');
       auditBody.replaceChildren();
       auditEmpty.hidden = data.entries.length > 0;
 
@@ -482,18 +561,36 @@
     if (name === 'audit') void loadAudit();
   }
 
+  $<HTMLButtonElement>('audit-prev').addEventListener('click', () => {
+    auditOffset = Math.max(0, auditOffset - Number(auditSize.value));
+    void loadAudit();
+  });
+  $<HTMLButtonElement>('audit-next').addEventListener('click', () => {
+    auditOffset += Number(auditSize.value);
+    void loadAudit();
+  });
+  auditSize.addEventListener('change', () => {
+    auditOffset = 0;
+    void loadAudit();
+  });
+
   tabs.senders.addEventListener('click', () => selectTab('senders'));
   tabs.users.addEventListener('click', () => selectTab('users'));
   tabs.audit.addEventListener('click', () => selectTab('audit'));
 
+  // Any filter change returns to the first page: keeping the old offset would
+  // land on an empty page whenever the narrowed result set is shorter.
   let filterTimer: number | undefined;
-  const debouncedLoad = (): void => {
-    window.clearTimeout(filterTimer);
-    filterTimer = window.setTimeout(() => void loadSenders(), 200);
+  const reloadFromFirstPage = (): void => {
+    sendersOffset = 0;
+    void loadSenders();
   };
-  search.addEventListener('input', debouncedLoad);
-  filterType.addEventListener('change', () => void loadSenders());
-  filterCsp.addEventListener('change', () => void loadSenders());
+  search.addEventListener('input', () => {
+    window.clearTimeout(filterTimer);
+    filterTimer = window.setTimeout(reloadFromFirstPage, 200);
+  });
+  filterType.addEventListener('change', reloadFromFirstPage);
+  filterCsp.addEventListener('change', reloadFromFirstPage);
 
   $<HTMLButtonElement>('logout').addEventListener('click', () => {
     void fetch('/logout', { method: 'POST' }).then(() => {

@@ -30,6 +30,11 @@ const senderSchema = z.object({
 
 const idParam = z.coerce.number().int().positive();
 
+const pageSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
 function clientIp(req: { ip?: string }): string | null {
   return req.ip ?? null;
 }
@@ -41,6 +46,13 @@ function isDuplicate(err: unknown): boolean {
 
 sendersRouter.get('/', async (req, res, next) => {
   try {
+    const page = pageSchema.safeParse(req.query);
+    if (!page.success) {
+      res.status(400).json({ error: 'Invalid pagination parameters' });
+      return;
+    }
+    const { limit, offset } = page.data;
+
     const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
     const csp = typeof req.query.csp === 'string' ? req.query.csp : '';
     const type = typeof req.query.type === 'string' ? req.query.type : '';
@@ -61,12 +73,22 @@ sendersRouter.get('/', async (req, res, next) => {
     }
     const clause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
 
-    const [rows] = await pool.query<SenderRow[]>(
-      `SELECT Id, senderId, senderIdType, csp FROM senderiddetails
-       ${clause} ORDER BY senderId ASC`,
+    // Count against the same filters, so the pager reflects the current view
+    // rather than the size of the whole table.
+    const [countRows] = await pool.query<RowDataPacket[]>(
+      `SELECT COUNT(*) AS n FROM senderiddetails ${clause}`,
       params,
     );
-    res.json({ senders: rows });
+    const total = Number(countRows[0]?.n ?? 0);
+
+    // LIMIT/OFFSET are interpolated because MySQL rejects placeholders there
+    // in a prepared statement; both are bounded integers from the schema.
+    const [rows] = await pool.query<SenderRow[]>(
+      `SELECT Id, senderId, senderIdType, csp FROM senderiddetails
+       ${clause} ORDER BY senderId ASC LIMIT ${limit} OFFSET ${offset}`,
+      params,
+    );
+    res.json({ senders: rows, total, limit, offset });
   } catch (err) {
     next(err);
   }
