@@ -3,19 +3,21 @@ services:
     build: .
     container_name: grantiliff-senders
     restart: unless-stopped
-    ports:
-      - "3020:3020"
+
+    # Host networking: the container shares the host's network stack, so it
+    # reaches the database over exactly the same route as a `mysql` CLI run on
+    # the host. On the default bridge network the container instead routes
+    # through docker's own 172.x network, which fails against a DB at
+    # 172.16.1.2 with a silent `connect ETIMEDOUT` -- either because a docker
+    # subnet overlaps 172.16.0.0/12 (so the container treats the DB as
+    # link-local and ARPs for it on the bridge), or because the host's FORWARD
+    # chain drops container traffic to that interface.
+    #
+    # Consequence: PORT from .env binds directly on the host, so there is no
+    # `ports:` mapping to declare here.
+    network_mode: host
+
     env_file:
       - .env
-    # DB_HOST and DB_PORT deliberately come from .env only. An `environment:`
-    # entry here would take precedence over env_file and silently override
-    # whatever the deployment configured -- which is exactly how a production
-    # DB_HOST=172.16.1.2 ended up dialling the docker bridge gateway instead.
-    #
-    #   production        DB_HOST=172.16.1.2     DB_PORT=3130
-    #   MySQL on this box DB_HOST=host.docker.internal
-    #
-    # The mapping below is what makes that second case work; it is harmless
-    # when DB_HOST points at a real remote host.
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    # DB_HOST / DB_PORT / PORT come from .env only. An `environment:` entry
+    # here would outrank env_file and silently override the deployment.

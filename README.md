@@ -93,77 +93,71 @@ npm start                      # http://localhost:3020
 
 ## Configuration precedence
 
-`DB_HOST` / `DB_PORT` are read from `.env` and nothing else. `docker-compose.yml`
-does **not** set them under `environment:`, because a value there outranks
-`env_file` and would silently override the deployment's own setting — a
-production `DB_HOST=172.16.1.2` gets discarded and the container dials the
-docker bridge gateway instead, failing with:
-
-```
-connect ECONNREFUSED 172.17.0.1:3130
-```
-
-(The port is right and the host is wrong: that is the signature of this
-mistake, since only `DB_HOST` was being overridden.)
+`DB_HOST` / `DB_PORT` / `PORT` are read from `.env` and nothing else.
+`docker-compose.yml` does **not** set them under `environment:`, because a value
+there outranks `env_file` and would silently override the deployment's own
+setting.
 
 | deployment | `DB_HOST` | `DB_PORT` |
 | --- | --- | --- |
 | Production | `172.16.1.2` | `3130` |
-| Docker, MySQL on the same host | `host.docker.internal` | `3306` |
-| Run directly on the host | `127.0.0.1` | `3306` |
+| MySQL on the same host | `127.0.0.1` | `3306` |
 
-Inside a container `127.0.0.1` is the container itself, never the host — that
-is what `host.docker.internal` (mapped via `extra_hosts`) is for. It is unused
-and harmless when `DB_HOST` names a real remote host.
+## Networking
+
+Compose uses `network_mode: host`, so the container shares the host's network
+stack and reaches the database over the same route as a `mysql` CLI run on that
+host. Because of this the app binds `PORT` directly and there is no `ports:`
+mapping.
+
+This is deliberate. On the default bridge network the container routes through
+docker's own `172.x` network, which fails against a database at `172.16.1.2`:
+
+```
+connect ETIMEDOUT
+```
+
+Two things cause that, and host networking sidesteps both:
+
+1. **Subnet overlap.** Docker allocates bridge networks from `172.16.0.0/12`.
+   If any docker network covers `172.16.1.0/24`, the container treats the
+   database as link-local, ARPs for it on the bridge, and gets nothing back.
+   Check with:
+
+   ```bash
+   docker network ls --format '{{.Name}}' | while read n; do
+     echo "$n: $(docker network inspect "$n" --format '{{range .IPAM.Config}}{{.Subnet}} {{end}}')"
+   done
+   ```
+
+2. **Blocked forwarding.** The host's `FORWARD` chain drops container traffic
+   towards the interface that reaches the database — common where the route
+   runs over a VPN or a secondary NIC.
+
+Both drop packets silently, which is why the symptom is a timeout rather than a
+refusal. To diagnose from inside a bridge-networked container:
+
+```bash
+docker run --rm alpine sh -c "ip route; nc -vz -w5 172.16.1.2 3130"
+```
+
+If you would rather keep bridge isolation, fix the underlying cause — move
+docker's address pool off the conflicting range in `/etc/docker/daemon.json`
+(`default-address-pools`), or allow the forwarding — and then replace
+`network_mode: host` with a `ports:` mapping.
 
 ### Docker
 
 ```bash
-docker compose up -d --build   # http://localhost:3020
+docker compose up -d --force-recreate --build   # http://localhost:3020
 ```
 
-MySQL runs on the host rather than in this compose project, so the container
-reaches it through the docker bridge gateway (`host.docker.internal`). The
-connection therefore arrives at MySQL from the bridge subnet, which is why
-`migrations/002_app_user.sql` grants `intranet` for `'172.%'` as well as for
-localhost. Without that grant MySQL refuses the container with:
-
-```
-Host '172.31.0.2' is not allowed to connect to this MySQL server
-```
+`--force-recreate` matters: compose will not recreate the container for an
+`.env` change alone, so without it a config fix appears to deploy while the old
+container keeps running.
 
 The migration and `seed-user` steps above still have to be run once against the
 database; compose does not do them.
-
-## Schema added by the migration
-
-| Table | Purpose |
-| --- | --- |
-| `dashboard_users` | Operators who can sign in. Seeded with the default super admin by migration 004. `username`, bcrypt `password_hash`, `role`, `is_active`, `last_login_at`. |
-| `sender_audit_log` | Append-only trail: `create`, `update`, `delete`, `login`, `login_failed`, `user_create`, `user_update`, `user_delete`, with actor, IP, and before/after JSON. |
-
-`sender_audit_log` deliberately has no foreign key to `senderiddetails` (the
-row it describes is usually gone) and denormalises `actor_username` alongside
-`actor_user_id` so history stays readable if a user row is ever removed.
-
-## Layout
-
-```
-src/          Express + TypeScript server
-  server.ts     app wiring, login/logout, static + page routes
-  auth.ts       bcrypt verification, JWT session cookie, route guards
-  db.ts         mysql2 pool + boot-time schema check
-  audit.ts      audit writer (transaction-aware)
-  routes/       senders CRUD, audit log reader
-  seed-user.ts  create/reset a dashboard user
-client/       browser TypeScript, compiled to public/
-views/        HTML pages, served only through the auth-guarded routes
-public/       static CSS + compiled client JS
-migrations/   SQL
-```
-
-HTML lives in `views/` rather than `public/` so `express.static` cannot serve
-the dashboard shell to an unauthenticated caller via `/index.html`.
 
 ## Database account
 
