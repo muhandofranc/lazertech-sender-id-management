@@ -7,11 +7,15 @@ services:
       - "3020:3020"
     env_file:
       - .env
-    environment:
-      # MySQL runs on the host, not in this compose project, so reach it
-      # through the docker bridge gateway. The connection arrives at MySQL
-      # from the bridge subnet, which is why the `intranet` user is granted
-      # for '172.%' as well as localhost (migrations/002_app_user.sql).
-      DB_HOST: host.docker.internal
+    # DB_HOST and DB_PORT deliberately come from .env only. An `environment:`
+    # entry here would take precedence over env_file and silently override
+    # whatever the deployment configured -- which is exactly how a production
+    # DB_HOST=172.16.1.2 ended up dialling the docker bridge gateway instead.
+    #
+    #   production        DB_HOST=172.16.1.2     DB_PORT=3130
+    #   MySQL on this box DB_HOST=host.docker.internal
+    #
+    # The mapping below is what makes that second case work; it is harmless
+    # when DB_HOST points at a real remote host.
     extra_hosts:
       - "host.docker.internal:host-gateway"

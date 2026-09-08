@@ -91,6 +91,31 @@ npm run seed-user -- <username> <password> [super_admin|user]   # defaults to su
 npm start                      # http://localhost:3020
 ```
 
+## Configuration precedence
+
+`DB_HOST` / `DB_PORT` are read from `.env` and nothing else. `docker-compose.yml`
+does **not** set them under `environment:`, because a value there outranks
+`env_file` and would silently override the deployment's own setting — a
+production `DB_HOST=172.16.1.2` gets discarded and the container dials the
+docker bridge gateway instead, failing with:
+
+```
+connect ECONNREFUSED 172.17.0.1:3130
+```
+
+(The port is right and the host is wrong: that is the signature of this
+mistake, since only `DB_HOST` was being overridden.)
+
+| deployment | `DB_HOST` | `DB_PORT` |
+| --- | --- | --- |
+| Production | `172.16.1.2` | `3130` |
+| Docker, MySQL on the same host | `host.docker.internal` | `3306` |
+| Run directly on the host | `127.0.0.1` | `3306` |
+
+Inside a container `127.0.0.1` is the container itself, never the host — that
+is what `host.docker.internal` (mapped via `extra_hosts`) is for. It is unused
+and harmless when `DB_HOST` names a real remote host.
+
 ### Docker
 
 ```bash
