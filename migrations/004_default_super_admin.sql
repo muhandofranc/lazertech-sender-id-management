@@ -18,7 +18,7 @@
 -- admin, never resets a password that has since been changed, and never
 -- re-adds the account on an instance that has moved on to real users.
 
---- Default: admin / ChangeMe@123 ---
+-- Default: admin / ChangeMe@123
 INSERT INTO `dashboard_users` (`username`, `password_hash`, `role`, `is_active`)
 SELECT 'admin',
        '$2a$12$qDJKtoFtrv1rN9gb/JPeWOQrBeOO26kKJJXPRSA74u2Xz1Mhfql3.',

@@ -28,12 +28,31 @@ export async function assertSchema(): Promise<void> {
   const missing = ['senderiddetails', 'dashboard_users', 'sender_audit_log'].filter(
     (t) => !present.has(t),
   );
-  if (missing.length > 0) {
+  if (missing.length === 0) return;
+
+  const db = config.db.database;
+  const target = `-h ${config.db.host} -P ${config.db.port} -u <admin-user> -p ${db}`;
+
+  // `senderiddetails` belongs to the SMS pipeline, not to this dashboard, so
+  // it is never created here -- if it is missing, the connection is pointed at
+  // the wrong database.
+  if (missing.includes('senderiddetails')) {
     throw new Error(
-      `Missing table(s) in \`${config.db.database}\`: ${missing.join(', ')}.\n` +
-        'Apply the migration, then seed a user:\n\n' +
-        '  mysql -h 127.0.0.1 -u root -p grantiliff < migrations/001_dashboard_tables.sql\n' +
-        '  npm run seed-user -- <username> <password>\n',
+      `Table \`senderiddetails\` was not found in \`${db}\`.\n` +
+        'That table belongs to the SMS pipeline and is not created by these ' +
+        'migrations, so this usually means DB_NAME names the wrong database.\n',
     );
   }
+
+  throw new Error(
+    `Missing dashboard table(s) in \`${db}\`: ${missing.join(', ')}.\n\n` +
+      'Apply the schema migrations, in order, with an account that can create ' +
+      'tables:\n\n' +
+      `  mysql ${target} < migrations/001_dashboard_tables.sql\n` +
+      `  mysql ${target} < migrations/003_roles.sql\n` +
+      `  mysql ${target} < migrations/004_default_super_admin.sql\n\n` +
+      '004 creates the default super admin (admin / ChangeMe@123), so no seed ' +
+      'step is needed. Skip 002 unless this deployment also needs the ' +
+      '`intranet` MySQL account created.\n',
+  );
 }
