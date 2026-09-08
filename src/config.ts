@@ -18,6 +18,10 @@ function int(name: string, fallback: number): number {
 
 export const config = {
   port: int('PORT', 3020),
+  // Interface to bind. Behind a reverse proxy set BIND_HOST=127.0.0.1 so the
+  // app is reachable only through the proxy; left at 0.0.0.0 it is exposed on
+  // every interface, which lets clients skip the proxy entirely.
+  bindHost: process.env.BIND_HOST ?? '0.0.0.0',
   // Behind a TLS-terminating proxy set COOKIE_SECURE=true so the session
   // cookie is only ever sent over https.
   cookieSecure: process.env.COOKIE_SECURE === 'true',

@@ -159,6 +159,66 @@ container keeps running.
 The migration and `seed-user` steps above still have to be run once against the
 database; compose does not do them.
 
+## Behind a reverse proxy
+
+`mod_proxy` alone cannot forward to an `http://` backend — `mod_proxy_http`
+carries the protocol handler. Without it every request fails with:
+
+```
+AH01144: No protocol handler was valid for the URL / (scheme 'http')
+```
+
+```bash
+sudo a2enmod proxy proxy_http
+sudo systemctl restart apache2
+```
+
+A minimal vhost:
+
+```apache
+<VirtualHost *:9310>
+  ServerName 94.72.97.10
+  ServerAdmin info@lazertech.co.ke
+  ErrorLog ${APACHE_LOG_DIR}/lazertech_sender_id_mng.log
+  CustomLog ${APACHE_LOG_DIR}/access.log combined
+
+  ProxyPreserveHost On
+  ProxyPass        / http://127.0.0.1:3020/
+  ProxyPassReverse / http://127.0.0.1:3020/
+
+  LogLevel warn
+</VirtualHost>
+```
+
+`DocumentRoot` and the matching `<Directory>` block are not needed: every path
+is proxied, so Apache never serves a file from disk.
+
+**Set `BIND_HOST=127.0.0.1` in `.env` whenever a proxy is in front.** With
+`network_mode: host` and the default `0.0.0.0`, the app also answers on every
+external interface, so anyone can reach it on `:3020` directly and skip the
+proxy — along with any auth, TLS or IP restriction configured there.
+
+The app already sets `trust proxy`, so `X-Forwarded-For` from the proxy is what
+lands in the audit log's `ip` column — real client addresses, not `127.0.0.1`.
+
+### COOKIE_SECURE also controls two headers
+
+`COOKIE_SECURE` means "this deployment is served over https". It sets the
+cookie flag, and it gates two headers that break a plain-http vhost:
+
+- **`upgrade-insecure-requests`** (a helmet CSP default). Over http it makes
+  the browser rewrite every stylesheet and script URL to `https://`, which has
+  no listener — so the HTML renders **with no CSS and no JS**, silently, with
+  nothing in the server log and `200`s in Apache's access log. `curl` does not
+  enforce CSP, so the assets look fine when fetched by hand.
+- **`Strict-Transport-Security`**, which would pin the host to https before
+  anything is listening there.
+
+Set `COOKIE_SECURE=true` only once TLS actually terminates in front of the app;
+both headers come back automatically. Setting it `true` on a plain-http vhost
+has the opposite failure: login returns `200` and bounces straight back to the
+login page, because the browser refuses to store a `Secure` cookie over http.
+
 ## Database account
 
 The app connects as `intranet`, which is granted only `SELECT, INSERT, UPDATE,

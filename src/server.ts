@@ -29,6 +29,11 @@ const viewsDir = path.join(__dirname, '..', 'views');
 // audit log when this runs behind nginx/Kong.
 app.set('trust proxy', 1);
 
+// COOKIE_SECURE doubles as "this deployment is served over https": it decides
+// the cookie flag, and the two headers below that are actively harmful on a
+// plain-http vhost.
+const servedOverHttps = config.cookieSecure;
+
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -40,8 +45,17 @@ app.use(
         formAction: ["'self'"],
         objectSrc: ["'none'"],
         frameAncestors: ["'none'"],
+        // helmet sets upgrade-insecure-requests by default. Over plain http
+        // that makes the browser rewrite every stylesheet and script URL to
+        // https, which has no listener -- the HTML renders but arrives with no
+        // CSS and no JS, failing silently with nothing in the server log.
+        // `null` removes the directive; keep it only where TLS actually exists.
+        ...(servedOverHttps ? {} : { upgradeInsecureRequests: null }),
       },
     },
+    // Browsers ignore HSTS over plain http, and honouring it later would pin
+    // the host to https before there is anything listening there.
+    hsts: servedOverHttps,
   }),
 );
 app.use(express.json({ limit: '64kb' }));
@@ -144,8 +158,10 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 
 async function main(): Promise<void> {
   await assertSchema();
-  app.listen(config.port, () => {
-    console.log(`grantiliff-senders listening on http://0.0.0.0:${config.port}`);
+  app.listen(config.port, config.bindHost, () => {
+    console.log(
+      `grantiliff-senders listening on http://${config.bindHost}:${config.port}`,
+    );
   });
 }
 
